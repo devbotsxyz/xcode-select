@@ -1,0 +1,11 @@
+name: 'Xcode Select'
+description: 'Select a version of Xcode'
+inputs:
+  version:
+    description: 'Version to use (10.3, 11 or latest)'
+    required: false
+    default: "latest"
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
+
