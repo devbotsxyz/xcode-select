@@ -19,10 +19,12 @@
 // SOFTWARE.
 
 
-const glob = require("glob");
-const execa = require('execa');
-const semver = require('semver');
-const fs = require('fs')
+const fs = require("fs")
+const path = require("path");
+
+const execa = require("execa");
+const plist = require("plist");
+const semver = require("semver");
 
 
 const isValidVersionSpecification = (v) => {
@@ -30,43 +32,40 @@ const isValidVersionSpecification = (v) => {
 };
 
 
-const matchVersionInPath = (path) => {
-    let match = path.match(/Xcode_(.+)\.app/);
-    if (match === null) {
-        return null;
-    }
-    return match[1];
+const getInfo = async (p) => {
+    const info = plist.parse(fs.readFileSync(path.join(p, "Contents/Info.plist"), "utf8"));
+    return {
+        beta: info["CFBundleIconName"].includes("Beta"),
+        version: semver.coerce(info["CFBundleShortVersionString"]),
+        shortVersion: info["CFBundleShortVersionString"],
+        path: p
+    };
 };
 
 
-const discoverVersions = () => {
-    let versions = [];
-    const paths = glob.sync("/Applications/Xcode_*.app");
-    for (const path of paths) {
-        let v = matchVersionInPath(path);
-        if (v != null) {
-            versions.push({path: path, shortVersion: v, version: semver.coerce(v)});
+const discoverInstalls = async (root, beta) => {
+    let installs = [];
+
+    const dir = await fs.promises.opendir(root);
+
+    for await (const dirent of dir) {
+        if (dirent.name.startsWith("Xcode_") && !dirent.isSymbolicLink()) {
+            const info = await getInfo(path.join(root, dirent.name));
+            if (info.beta === beta) {
+                installs.push(info);
+            }
         }
     }
-    return versions.sort((a, b) => semver.rcompare(a.version, b.version));
+
+    return installs.sort((a, b) => semver.rcompare(a.version, b.version));
 };
 
 
-const latestVersion = (versions) => {
-    return versions[0];
-};
-
-
-const matchVersion = (versions, spec) => {
-    return versions.find(version => semver.satisfies(version.version, spec));
-};
-
-
-const findVersion = (versions, spec) => {
-    if (spec == 'latest') {
-        return latestVersion(versions);
+const matchInstall = (installs, spec) => {
+    if (spec === "latest") {
+        return installs[0];
     }
-    return matchVersion(versions, spec);
+    return installs.find(install => semver.satisfies(install.version, spec));
 };
 
 
@@ -80,10 +79,6 @@ const select = async (version) => {
 
 module.exports = {
     isValidVersionSpecification,
-    matchVersionInPath,
-    discoverVersions,
-    latestVersion,
-    matchVersion,
-    findVersion,
-    select
+    discoverInstalls,
+    matchInstall,
 };

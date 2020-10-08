@@ -22,24 +22,6 @@
 const xcode = require("./xcode");
 
 
-test('matchVersionInPath', () => {
-    const tests = {
-        "/Applications/Xcode_12.app":     "12",
-        "/Applications/Xcode_12.0.app":   "12.0",
-        "/Applications/Xcode_12.0.0.app": "12.0.0",
-        "/Applications/Xcode_12.2.app":   "12.2",
-        "/Applications/Xcode_10.3.1.app": "10.3.1",
-        "/Applications/Xcode_10.3.app":   "10.3",
-        "/Applications/Xcode_10.3.0.app": "10.3.0",
-        "/Applications/Xcode.app":        null,
-    };
-
-    for (let [path, version] of Object.entries(tests)) {
-        expect(xcode.matchVersionInPath(path)).toEqual(version);
-    }
-});
-
-
 test('isValidVersionSpecification', () => {
     const tests = {
         "12": true,

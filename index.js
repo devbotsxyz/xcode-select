@@ -25,31 +25,42 @@ const github = require('@actions/github');
 const xcode = require('./xcode');
 
 
+const parseConfiguration = async () => {
+    const configuration = {
+        version: core.getInput("version"),
+        beta: core.getInput("beta") === "true",
+    };
+
+    if (!xcode.isValidVersionSpecification(configuration.version)) {
+        throw Error(`Invalid version specification: ${configuration.version}`);
+    }
+
+    return configuration;
+};
+
+
 const main = async () => {
     try {
         if (process.platform !== "darwin") {
             throw new Error("This action can only run on macOS.");
         }
 
-        let requestedVersion = core.getInput('version', {required: true});
-        if (!xcode.isValidVersionSpecification(requestedVersion)) {
-            throw Error(`Invalid version specification: ${requestedVersion}`);
+        const configuration = await parseConfiguration();
+
+        let installs = await xcode.discoverInstalls("/Applications", configuration.beta);
+        if (installs.length == 0) {
+            throw Error("No Xcode installs could be found. This should not happen.");
         }
 
-        let availableVersions = xcode.discoverVersions();
-        if (availableVersions.length == 0) {
-            throw Error("No Xcode installs could be found.");
+        let install = xcode.matchInstall(installs, configuration.version, configuration.beta);
+        if (install == null) {
+            throw Error(`Could not match Xcode version ${configuration.version} in available versions <${installs.map(i => i.shortVersion)}>.`);
         }
 
-        let version = xcode.findVersion(availableVersions, requestedVersion);
-        if (version == null) {
-            throw Error(`Could not match Xcode version <${requestedVersion}> in <${availableVersions.map(v => v.shortVersion)}>.`);
-        }
-
-        console.log(`Selecting Xcode <${version.shortVersion}> at <${version.path}>`);
-        await xcode.select(version);
-    } catch (err) {
-        core.setFailed(err.message);
+        core.info(`Selecting Xcode ${install.shortVersion} at ${install.path}`);
+        await xcode.select(install);
+    } catch (error) {
+        core.setFailed(error.message);
     }
 };
 
